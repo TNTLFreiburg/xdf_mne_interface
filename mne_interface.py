@@ -51,6 +51,7 @@ def xdf_loader(xdf_file):
                 'FC4', 'C5', 'C1', 'C2', 'C6', 'CP3', 'CPz', 'CP4', 'P5', 'P1',
                 'P2', 'P6', 'PO5', 'PO3', 'PO4', 'PO6', 'FT7', 'FT8', 'TP7', 'TP8',
                 'PO7', 'PO8']
+        
     elif (len(data) == 75):
         ch_types = ['eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg',
                 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg',
@@ -200,7 +201,7 @@ def static_epochs(path, files, regexp, timeframe_start, timeframe_end, target_fp
         
     return epoch
 
-def dlvr_braindecode(path, files, timeframe_start, timeframe_end, target_fps):
+def dlvr_braindecode(path, files, timeframe_start, target_fps):
     """ Uses event markers to extract motor tasks from multiple DLVR .xdf files.
     Args:
         path: If the files share a single path, you can specify it here.
@@ -222,7 +223,7 @@ def dlvr_braindecode(path, files, timeframe_start, timeframe_end, target_fps):
     y = np.array([])
     for file in files:
         #load a file
-        current_raw = mni.xdf_loader(path+file)
+        current_raw = xdf_loader(path+file)
         #discard EOG/EMG
         current_raw.pick_types(meg=False, eeg=True)
         #pick only relevant events
@@ -240,11 +241,16 @@ def dlvr_braindecode(path, files, timeframe_start, timeframe_end, target_fps):
         current_raw._data = exponential_running_standardize(current_raw._data.T, factor_new=0.001, init_block_size=None, eps=0.0001).T
         
         #Find the trials and their corresponding end points    
-        for event in starts:
+        for count, event in enumerate(starts):
             #in case the last trial has no end (experiment ended before the trial ends), discard it
             if len(stops[stops>event]) == 0:
                 key = key[:-sum(starts>=event)]
                 break
+                
+            if stops[stops>event][0]-event < 5000:
+                key = np.delete(key, count)
+                continue
+            
             #Get the trial from 1 second before the task starts to the next 'Monster deactived' flag
             current_epoch = current_raw._data[:, event-timeframe_start*5000 : stops[stops>event][0]]
             #downsample to 250 Hz
@@ -254,6 +260,7 @@ def dlvr_braindecode(path, files, timeframe_start, timeframe_end, target_fps):
         
         y = np.append(y,key)
     y = y.astype(np.int64)
+    return(X,y)
 
 def plot_relative_psd(epochs, events, fmax=np.inf):
     epochs.pick_types(meg=False, eeg=True)
