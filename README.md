@@ -1,5 +1,9 @@
 # xdf_mne_interface
-TODOs: 
+
+## Dependencies
+numpy, xdf, matplotlib, re, resampy, mne, braindecode
+
+## TODOs: 
 - Implement quick data analysis pipeline:
   1. Load all runs and have a mechanism to keep them separate (e.g. keep them in a list)
   2. Make a comb filter to remove 50 Hz and 90 Hz and harmonics to make visual inspection possible
