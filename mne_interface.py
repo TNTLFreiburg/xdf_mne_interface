@@ -70,6 +70,13 @@ def xdf_loader(xdf_file):
                 'FC4', 'C5', 'C1', 'C2', 'C6', 'CP3', 'CPz', 'CP4', 'P5', 'P1',
                 'P2', 'P6', 'PO5', 'PO3', 'PO4', 'PO6', 'FT7', 'FT8', 'TP7', 'TP8',
                 'PO7', 'PO8', 'ECG', 'Respiration', 'GSR']
+        
+    elif len(data)<len(ch_types):
+        print('Unexpected number of channels in the data, cut to the length of the data')
+        extra = len(data) - len(ch_types)
+        ch_types = ch_types[:extra]
+        ch_names = ch_names[:extra]
+
     
     info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
     
