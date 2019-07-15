@@ -19,7 +19,7 @@ def xdf_loader(xdf_file):
     """
     
     # Load the xdf file
-    stream = xdf.load_xdf(xdf_file)
+    stream = xdf.load_xdf(xdf_file, verbose = False)
     
     # Extract the necessary event and eeg information
     stream_names = np.array([item['info']['name'][0] for item in stream[0]])
@@ -70,13 +70,6 @@ def xdf_loader(xdf_file):
                 'FC4', 'C5', 'C1', 'C2', 'C6', 'CP3', 'CPz', 'CP4', 'P5', 'P1',
                 'P2', 'P6', 'PO5', 'PO3', 'PO4', 'PO6', 'FT7', 'FT8', 'TP7', 'TP8',
                 'PO7', 'PO8', 'ECG', 'Respiration', 'GSR']
-        
-    elif len(data)<len(ch_types):
-        print('Unexpected number of channels in the data, cut to the length of the data')
-        extra = len(data) - len(ch_types)
-        ch_types = ch_types[:extra]
-        ch_names = ch_names[:extra]
-
     
     info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
     
@@ -108,6 +101,67 @@ def xdf_loader(xdf_file):
     
     return(raw)
 
+def synchronize_video(xdf, vid):
+    
+    cap = cv2.VideoCapture(vid)
+    ret, frame = cap.read()
+    
+    %matplotlib qt
+    f,a = plt.subplots()
+    a.imshow(frame)
+    pos = []
+    
+    print('Click on the indicator and close the image.')
+    
+    def onclick(event):
+        pos.append([event.xdata,event.ydata])
+        
+    f.canvas.mpl_connect('button_press_event', onclick)
+    f.suptitle('Click on the indicator')
+    
+    plt.show(block = True)
+    pos = np.array(pos[-1]).round().astype(int)
+
+    print('Start reading video')
+    clval = [] #np.expand_dims(frame[pos[1],pos[0]],0)
+    while (ret):    
+        clval.append(frame[pos[1],pos[0]])
+        ret, frame = cap.read()
+    
+    print('End reading video')
+    
+    switch = np.array(clval).sum(1)
+
+    switch = switch>100
+    switch = switch.astype(int)
+    
+    changes = np.diff(switch, axis=0)
+    
+    print('Start reading .xdf')
+    stream = xdf.load_xdf(xdf, verbose = False)
+    print('End reading .xdf')
+    
+    stream_names = np.array([item['info']['name'][0] for item in stream[0]])
+    vid_sync = list(stream_names).index('Video Sync')
+    
+    vid_sync_times = np.array(stream[0][vid_sync]['time_stamps'])
+    
+    get_indices = lambda x, xs: [i for (y, i) in zip(xs, range(len(xs))) if x == y]
+    frames = np.array(get_indices(1,changes))+1
+
+    y=vid_sync_times
+    x=frames
+    
+    m,b = np.polyfit(x, y, 1)
+    
+    frame_time = np.arange(len(clval))*m+b
+    
+    maxerror = max(abs((frames*m+b)-y))
+    meanerror = np.mean(abs((frames*m+b)-y))
+    
+    print("Comparing the projected time to the data points, the maximum error was ", maxerror, " and the mean error was ", meanerror,".")
+    
+    return(frame_time)
 
 #Export data into .fif for visualization in other programs
 def fif_save(raw, fif):
@@ -165,12 +219,13 @@ def static_epochs(path, files, regexp, timeframe_start, timeframe_end, target_fp
     epoch = []
     master_legend = []
     for file in files:
+        print('Reading ', file)
         current_raw = xdf_loader(path+file)
         current_events = current_raw.events
         current_id = current_raw.event_id
         
-        current_raw._data = exponential_running_standardize(current_raw._data, factor_new=0.001, init_block_size=None, eps=0.0001)
-        current_raw.filter(1,40)
+        #current_raw._data = exponential_running_standardize(current_raw._data, factor_new=0.001, init_block_size=None, eps=0.0001)
+        #current_raw.filter(1,40)
         
         # Compute which actions are available in the current file
         here = np.array([bool(re.search(regexp, element)) for element in list(current_id.keys())])
@@ -230,7 +285,8 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
     y = np.array([])
     for file in files:
         #load a file
-        current_raw = xdf_loader(path+file)
+        print('Reading ', file)
+        current_raw = xdf_loader(path+file, verbose = False)
         #discard EOG/EMG
         current_raw.pick_types(meg=False, eeg=True)
         #pick only relevant events
@@ -363,7 +419,7 @@ def plot_relative_tfr(epochs, events, timeframe_start, timeframe_stop):
     cond_1 = epochs[events[0]]
     cond_2 = epochs[events[1]]
     
-    wsize = int(epochs.info['sfreq'] + epochs.info['sfreq'] % 4)
+    wsize = 120 #int(epochs.info['sfreq'] + epochs.info['sfreq'] % 4)
     tstep = int(wsize/10)
     freqs = mne.time_frequency.stftfreq(wsize=wsize, sfreq=epochs.info['sfreq'])
     
@@ -489,12 +545,13 @@ def plot_dualsw(epochs, events, fmax=np.inf):
 
 def plot_tfr_topomap(epochs, events, fmin=0, fmax=np.inf, reject=None):
     epochs.pick_types(meg=False, eeg=True)
+    epochs.set_eeg_reference()
 
     cond_1 = epochs[events[0]]
     cond_2 = epochs[events[1]]
 
-    wsize = int(epochs.info['sfreq']+ epochs.info['sfreq']%4)
-    tstep = int(wsize/10)
+    wsize = 120 #int(epochs.info['sfreq']+ epochs.info['sfreq']%4)
+    tstep = 12#int()
     freqs = mne.time_frequency.stftfreq(wsize=wsize, sfreq=epochs.info['sfreq'])
 
     img_1 = [mne.time_frequency.stft(cond_1._data[x], wsize, tstep) for x in np.arange(cond_1._data.shape[0])]
@@ -527,7 +584,8 @@ def plot_tfr_topomap(epochs, events, fmin=0, fmax=np.inf, reject=None):
 
     div = 20 * np.log10(mean_1/mean_2)
 
-    plt.figure()
-    mne.viz.plot_topomap(np.median(div[:, (freqs >= fmin) & (freqs <= fmax)], axis=1), pos=epochs.info)
-    plt.gcf().suptitle(('"' + events[0] + '"/"' + events[1] + '" for '+str(fmin) + ' - ' + str(fmax) + 'Hz'))
+    fig, ax = plt.subplots()
+    im = mne.viz.plot_topomap(np.median(div[:, (freqs >= fmin) & (freqs <= fmax)], axis=1), pos=epochs.info)
+    plt.gcf().suptitle(('Log relative power of \n"' + events[0] + '"/"' + events[1] + '"'))
+    plt.colorbar(im[0])
 
