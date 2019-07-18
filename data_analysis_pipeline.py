@@ -47,18 +47,18 @@ raw_conc.plot(remove_dc=False, scalings='auto', n_channels=75, events=raw_conc.e
 #%% VI. PSD topo
 
 fmax = 250                # end frequency to consider
-blocks = [1, 5, 10, 15]   # blocks for which to plot PSDs
+blocks = [1, 2, 10]   # blocks for which to plot PSDs
 
 da.plot_raw_psd(raw_BAK, fmax, blocks)
 
-plt.gcf().axes[0].set_xscale('symlog')
-plt.gcf().axes[0].set_yscale('symlog')
+#plt.gcf().axes[0].set_xscale('symlog')
+#plt.gcf().axes[0].set_yscale('symlog')
 
 #%% VII. variance topo
 
 percentile = 95                 # percentile specifying the upper bound of the color range
 
-da.plot_var_topo(raw, percentile)
+da.plot_var_topo(raw, percentile, as_log=True)
 
 #%% VII. Epoch data
 
@@ -89,6 +89,8 @@ evoked, evo_se = da.average_epochs(epochs_conc, error='std')
 #%% Pot evoked
 
 mne.viz.plot_evoked_topo(evoked, scalings=1)  # topographically plot averaged ERPs with one line per marker
+
+# IX
 da.plot_evo_topo(evoked, evo_se)              # topographically plot averaged ERPs with STD/SEM
 
 da.plot_evo(evoked)
@@ -104,17 +106,21 @@ evoked[1].plot_joint(times=[.17, .28, .36, .5])
 #%% plot PSDs
 
 #plot PSDs
+# X
 da.plot_epoch_psd(epochs_conc, tmin=-0.5, tmax=2)           #PSDs over all blocks
-
+# X
 da.plot_block_psd(epochs, block=16, tmin=-0.5, tmax=1)      #PSD for specific block
 
 #%% plot TFR
 
-da.plot_tfr(epochs_conc, event=1)           # baseline correction as specified for mne.time_frequency.AverageTFR.plot_topo()
+# XIV
+da.plot_tfr(epochs_conc, event=1)           # baseline correction as specified for mne.time_frequency.AverageTFR.plot_topo() from -500 ms to -0 ms before onset
 
+# XIV
 da.epoch_tfr(epochs, events=[1,2]) # baseline correction: Calculate baseline (-500 ms - 0 ms before marker, median across time & trials in two steps, all markers pooled)
 
-da.plot_rel_tfr(epochs_conc, events=[1,2])  # power event1/ power event2, baseline correction as specified for mne.time_frequency.AverageTFR.plot_topo()
+# XV
+da.plot_rel_tfr(epochs_conc, events=[1,2])  # power event1/ power event2, baseline correction as specified for mne.time_frequency.AverageTFR.plot_topo() from -500 ms to -0 ms before onset
 
 
 
