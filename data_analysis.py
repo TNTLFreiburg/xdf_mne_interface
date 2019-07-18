@@ -1,5 +1,3 @@
-from importlib import reload
-
 import mne_interface as mif
 import matplotlib.pyplot as plt
 import numpy as np
@@ -163,7 +161,7 @@ def plot_raw_psd(raw_BAK, fmax, blocks):
 #%% VII. variance topo
 
 
-def plot_var_topo(raw, percentile):
+def plot_var_topo(raw, percentile, as_log=False):
     """ topographically plots variance of EEG channels for each block.
 
                         Args:
@@ -177,14 +175,18 @@ def plot_var_topo(raw, percentile):
         vars.append(var)
         raw[run_idx]._var = var
 
-    perc = np.percentile(vars, percentile)
+    perc = np.percentile(np.log(vars) if as_log else vars, percentile)
 
     eeg_layout = mne.channels.make_eeg_layout(raw[run_idx].info)
     for run_idx in range(len(raw)):
 
         plt.subplot(4, 4, run_idx+1)
-        ax = mne.viz.plot_topomap(raw[run_idx]._var[0:eeg_layout.ids.size], pos=eeg_layout.pos, names=eeg_layout.names,
-                                  show_names=False, outlines='head', extrapolate='local', contours=0, vmax=perc)
+        if as_log:
+            tmp = np.log(raw[run_idx]._var)
+        else:
+            tmp = raw[run_idx]._var
+        ax = mne.viz.plot_topomap(tmp[0:eeg_layout.ids.size], pos=eeg_layout.pos, names=eeg_layout.names,
+                                  show_names=False, outlines='head', extrapolate='local', contours=0, vmax=perc, vmin=0)
 
         plt.title(raw[run_idx]._filenames[0])
         if run_idx+1 == len(raw):
@@ -582,4 +584,4 @@ def plot_rel_tfr(epochs,events):
     rel_power = deepcopy(power1)
     rel_power._data = power1._data/power2._data
 
-    rel_power.plot_topo(baseline=None, mode='logratio', title='relative average power: Event - '+list(epochs[events[0]].event_id.keys())[0]+'/'+list(epochs[events[1]].event_id.keys())[0], )
+    rel_power.plot_topo(baseline=[-0.5, 0], mode='logratio', title='relative average power: Event - '+list(epochs[events[0]].event_id.keys())[0]+'/'+list(epochs[events[1]].event_id.keys())[0], )
