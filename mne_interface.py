@@ -296,7 +296,12 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
     for file in files:
         #load a file
         print('Reading ', file)
-        current_raw = xdf_loader(path+file, verbose = False)
+        current_raw = xdf_loader(path+file)
+        
+        # For MEGVR experiments switch EMG into C3/4
+        #current_raw._data[14,:]= current_raw.get_data(picks = ['EMG_LH']) #C3
+        #current_raw._data[16,:]= current_raw.get_data(picks = ['EMG_RH']) #C4
+        
         #discard EOG/EMG
         current_raw.pick_types(meg=False, eeg=True)
         #pick only relevant events
@@ -313,7 +318,9 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
         #standardize, convert to size(time, channels)
         current_raw._data = exponential_running_standardize(current_raw._data.T, factor_new=0.001, init_block_size=None, eps=0.0001).T
         
-        #Find the trials and their corresponding end points    
+        #Find the trials and their corresponding end points
+        
+        bads = np.array([])
         for count, event in enumerate(starts):
             #in case the last trial has no end (experiment ended before the trial ends), discard it
             if len(stops[stops>event]) == 0:
@@ -321,7 +328,7 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
                 break
                 
             if stops[stops>event][0]-event < 5000:
-                key = np.delete(key, count)
+                bads = np.append(bads,count)                
                 continue
             
             #Get the trial from 1 second before the task starts to the next 'Monster deactived' flag
@@ -331,6 +338,8 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
             current_epoch = current_epoch.astype(np.float32)
             X.append(current_epoch)
         
+        if len(bads)>0:
+            key = np.delete(key, bads)
         y = np.append(y,key)
     y = y.astype(np.int64)
     return(X,y)
