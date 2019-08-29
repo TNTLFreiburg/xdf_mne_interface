@@ -6,6 +6,7 @@ import resampy
 import mne
 import cv2
 from braindecode.datautil.signalproc import exponential_running_standardize
+from scipy.signal import filtfilt, iirnotch, butter
 
 
 def xdf_loader(xdf_file):
@@ -299,8 +300,8 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
         current_raw = xdf_loader(path+file)
         
         # For MEGVR experiments switch EMG into C3/4
-        #current_raw._data[14,:]= current_raw.get_data(picks = ['EMG_LH']) #C3
-        #current_raw._data[16,:]= current_raw.get_data(picks = ['EMG_RH']) #C4
+        current_raw._data[14,:]= current_raw.get_data(picks = ['EMG_LH']) #C3
+        current_raw._data[16,:]= current_raw.get_data(picks = ['EMG_RH']) #C4
         
         #discard EOG/EMG
         current_raw.pick_types(meg=False, eeg=True)
@@ -333,9 +334,28 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
             
             #Get the trial from 1 second before the task starts to the next 'Monster deactived' flag
             current_epoch = current_raw._data[:, event-timeframe_start*5000 : stops[stops>event][0]]
+            
+            #filter signal
+            B_1, A_1 = butter(6, 1, btype='high', output='ba', fs = 5000)
+
+            # Butter filter (lowpass) for 30 Hz
+            B_40, A_40 = butter(6, 40, btype='low', output='ba', fs = 5000)
+
+            # Notch filter with 50 HZ
+            F0 = 50.0
+            Q = 30.0  # Quality factor
+            # Design notch filter
+            B_50, A_50 = iirnotch(F0, Q, 5000)
+        
+            current_epoch = filtfilt(B_50, A_50, current_epoch)
+            current_epoch = filtfilt(B_40, A_40, current_epoch)
+            current_epoch = filtfilt(B_1, A_1, current_epoch)
+            
             #downsample to 250 Hz
             current_epoch= resampy.resample(current_epoch, 5000, 250,axis=1)
             current_epoch = current_epoch.astype(np.float32)
+            
+            
             X.append(current_epoch)
         
         if len(bads)>0:
