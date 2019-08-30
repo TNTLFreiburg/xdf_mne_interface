@@ -333,10 +333,10 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
                 continue
             
             #Get the trial from 1 second before the task starts to the next 'Monster deactived' flag
-            current_epoch = current_raw._data[:, event-timeframe_start*5000 : stops[stops>event][0]]
+            current_epoch = current_raw._data[:, event-round(timeframe_start*5000) : stops[stops>event][0]]
             
             #filter signal
-            B_1, A_1 = butter(6, 1, btype='high', output='ba', fs = 5000)
+            B_1, A_1 = butter(5, 1, btype='high', output='ba', fs = 5000)
 
             # Butter filter (lowpass) for 30 Hz
             B_40, A_40 = butter(6, 40, btype='low', output='ba', fs = 5000)
