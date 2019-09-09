@@ -5,7 +5,7 @@ import re
 import resampy
 import mne
 import cv2
-from braindecode.datautil.signalproc import exponential_running_standardize
+from braindecode.datautil.signalproc import exponential_running_standardize, exponential_running_demean
 from scipy.signal import filtfilt, iirnotch, butter
 
 
@@ -99,7 +99,7 @@ def xdf_loader(xdf_file):
     raw.set_montage(mne.channels.read_montage("standard_1005", ch_names=raw.info["ch_names"]))
     
     # Reference to the common average
-    # raw.set_eeg_reference()
+    #raw.set_eeg_reference()
     
     return(raw)
 
@@ -235,7 +235,7 @@ def static_epochs(path, files, regexp, timeframe_start, timeframe_end, target_fp
         current_events = current_raw.events
         current_id = current_raw.event_id
         
-        #current_raw._data = exponential_running_standardize(current_raw._data, factor_new=0.001, init_block_size=None, eps=0.0001)
+        current_raw._data = exponential_running_standardize(current_raw._data, factor_new=0.001, init_block_size=None, eps=0.0001)
         #current_raw.filter(1,40)
         
         # Compute which actions are available in the current file
@@ -317,7 +317,7 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
         key = (key==key.max()).astype(np.int64)
         
         #standardize, convert to size(time, channels)
-        current_raw._data = exponential_running_standardize(current_raw._data.T, factor_new=0.001, init_block_size=None, eps=0.0001).T
+        #current_raw._data = exponential_running_standardize(current_raw._data.T, factor_new=0.001, init_block_size=None, eps=0.0001).T
         
         #Find the trials and their corresponding end points
         
@@ -339,7 +339,7 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
             B_1, A_1 = butter(5, 1, btype='high', output='ba', fs = 5000)
 
             # Butter filter (lowpass) for 30 Hz
-            B_40, A_40 = butter(6, 40, btype='low', output='ba', fs = 5000)
+            B_40, A_40 = butter(6, 120, btype='low', output='ba', fs = 5000)
 
             # Notch filter with 50 HZ
             F0 = 50.0
@@ -349,11 +349,16 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
         
             current_epoch = filtfilt(B_50, A_50, current_epoch)
             current_epoch = filtfilt(B_40, A_40, current_epoch)
-            current_epoch = filtfilt(B_1, A_1, current_epoch)
+            #current_epoch = filtfilt(B_1, A_1, current_epoch)
+            
+            
             
             #downsample to 250 Hz
             current_epoch= resampy.resample(current_epoch, 5000, 250,axis=1)
             current_epoch = current_epoch.astype(np.float32)
+            
+            #standardize, convert to size(time, channels)
+            current_epoch = exponential_running_standardize(current_epoch.T, factor_new=0.001, init_block_size=None, eps=0.0001).T
             
             
             X.append(current_epoch)
