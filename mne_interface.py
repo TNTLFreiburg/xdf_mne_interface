@@ -275,7 +275,7 @@ def static_epochs(path, files, regexp, timeframe_start, timeframe_end, target_fp
         
     return epoch
 
-def dlvr_braindecode(path, files, timeframe_start, target_fps):
+def dlvr_braindecode(path, files, timeframe_start, target_fps, preprocessing=True):
     """ Uses event markers to extract motor tasks from multiple DLVR .xdf files.
     Args:
         path: If the files share a single path, you can specify it here.
@@ -284,7 +284,9 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
         
         timeframe_start: The time in seconds before the event, in which the EEG Data is extracted.
         
-        target_fps: Downsample the EEG-data to this value.         
+        target_fps: Downsample the EEG-data to this value.     
+
+        preprocessing: Filters and demean/unitvariance activated (true) or deactivated (false)
     
     Returns:
         X: A list of trials
@@ -336,30 +338,31 @@ def dlvr_braindecode(path, files, timeframe_start, target_fps):
             #Get the trial from 1 second before the task starts to the next 'Monster deactived' flag
             current_epoch = current_raw._data[:, event-round(timeframe_start*5000) : stops[stops>event][0]]
             
-            #filter signal
-            B_1, A_1 = butter(5, 1, btype='high', output='ba', fs = 5000)
+            if preprocessing == True:
+                #filter signal
+                B_1, A_1 = butter(5, 1, btype='high', output='ba', fs = 5000)
 
-            # Butter filter (lowpass) for 30 Hz
-            B_40, A_40 = butter(6, 120, btype='low', output='ba', fs = 5000)
+                # Butter filter (lowpass) for 30 Hz
+                B_40, A_40 = butter(6, 120, btype='low', output='ba', fs = 5000)
 
-            # Notch filter with 50 HZ
-            F0 = 50.0
-            Q = 30.0  # Quality factor
-            # Design notch filter
-            B_50, A_50 = iirnotch(F0, Q, 5000)
+                # Notch filter with 50 HZ
+                F0 = 50.0
+                Q = 30.0  # Quality factor
+                # Design notch filter
+                B_50, A_50 = iirnotch(F0, Q, 5000)
         
-            current_epoch = filtfilt(B_50, A_50, current_epoch)
-            current_epoch = filtfilt(B_40, A_40, current_epoch)
-            #current_epoch = filtfilt(B_1, A_1, current_epoch)
-            
+                current_epoch = filtfilt(B_50, A_50, current_epoch)
+                current_epoch = filtfilt(B_40, A_40, current_epoch)
+                #current_epoch = filtfilt(B_1, A_1, current_epoch)
             
             
             #downsample to 250 Hz
             current_epoch= resampy.resample(current_epoch, 5000, 250,axis=1)
             current_epoch = current_epoch.astype(np.float32)
             
-            #standardize, convert to size(time, channels)
-            current_epoch = exponential_running_standardize(current_epoch.T, factor_new=0.001, init_block_size=None, eps=0.0001).T
+            if preprocessing == True:
+                #standardize, convert to size(time, channels)
+                current_epoch = exponential_running_standardize(current_epoch.T, factor_new=0.001, init_block_size=None, eps=0.0001).T
             
             
             X.append(current_epoch)
@@ -455,7 +458,7 @@ def bdonline_extract(path, files, timeframe_start, target_fps):
             
                 #downsample to 250 Hz
                 current_chunk = np.array([np.mean(current_chunk[:, i:i + DOWNSAMPLING_COEF], axis=1) for i in
-							np.arange(0, 400, DOWNSAMPLING_COEF)]).astype('float32')
+                            np.arange(0, 400, DOWNSAMPLING_COEF)]).astype('float32')
                 
             
                 #standardize, convert to size(time, channels)
